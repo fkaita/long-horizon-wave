@@ -21,7 +21,7 @@ export default function ResultCard({ result }: { result: WaveResult }) {
   return (
     <section className="rise w-full max-w-4xl">
       <div className="mb-3 text-sm text-white/60">
-        Now showing <span className="text-white">{result.location.query}</span>
+        Now showing <span className="text-white">{result.location.displayName}</span>
       </div>
 
       <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black">

@@ -20,22 +20,80 @@ async function searchName(name: string): Promise<GeoHit[]> {
   return json.results ?? [];
 }
 
-/** "Ocean Beach, San Francisco" → try full string, then the parts, preferring hits matching the qualifiers. */
+/** Free-text geocoding: OpenStreetMap Nominatim first (understands "Ocean Beach San Francisco", "Kamakura japan"), Open-Meteo as fallback. */
 export async function geocode(query: string): Promise<LocationInfo | null> {
-  const parts = query.split(",").map((p) => p.trim()).filter(Boolean);
-  const qualifiers = parts.slice(1).map((p) => p.toLowerCase());
-  const candidates = [query, ...parts];
+  const hit = await geocodeNominatim(query);
+  if (hit) return hit;
+  // "Pipeline Oahu": nickname + area — try the area on its own
+  const words = query.replace(/,/g, " ").split(/\s+/).filter(Boolean);
+  if (words.length > 1) {
+    await new Promise((r) => setTimeout(r, 1000)); // Nominatim policy: max 1 req/s
+    const area = await geocodeNominatim(words.slice(1).join(" "));
+    if (area) return { ...area, query };
+  }
+  return geocodeOpenMeteo(query);
+}
 
-  const matches = (h: GeoHit) =>
-    qualifiers.length === 0 ||
-    qualifiers.some((q) =>
-      [h.country, h.admin1, h.admin2, h.name].some((f) => f && (f.toLowerCase().includes(q) || q.includes(f.toLowerCase()))),
+async function geocodeNominatim(query: string): Promise<LocationInfo | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&accept-language=en&q=${encodeURIComponent(query)}`,
+      { headers: { "User-Agent": "LongHorizon/0.1 (hackathon demo; https://github.com/fkaita/long-horizon-wave)" }, signal: AbortSignal.timeout(6000) },
+    );
+    if (!res.ok) return null;
+    const [hit] = (await res.json()) as { name: string; lat: string; lon: string; address?: Record<string, string> }[];
+    if (!hit) return null;
+    const a = hit.address ?? {};
+    const region = a.state ?? a.province ?? a.region ?? a.county ?? null;
+    const name = hit.name || a.city || a.town || query;
+    return {
+      query,
+      name,
+      displayName: [name, region, a.country].filter(Boolean).join(", "),
+      latitude: Number(hit.lat),
+      longitude: Number(hit.lon),
+      country: a.country ?? null,
+      timezone: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+const plain = (s: string) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+/**
+ * "Ocean Beach, San Francisco" / "Kamakura japan" / "Waikiki Beach Hawaii" → try the full string, the comma parts,
+ * then shorter word prefixes with the dropped words used as qualifiers (country / region), preferring matching hits.
+ */
+async function geocodeOpenMeteo(query: string): Promise<LocationInfo | null> {
+  const parts = query.split(",").map((p) => p.trim()).filter(Boolean);
+  const commaQualifiers = parts.slice(1);
+  // regionOnly: qualifiers taken from dropped words may only match country/region, not the place name ("Beach")
+  const attempts: { name: string; qualifiers: string[]; regionOnly?: boolean }[] = [
+    { name: query, qualifiers: commaQualifiers },
+    ...parts.map((p) => ({ name: p, qualifiers: parts.filter((x) => x !== p) })),
+  ];
+  const words = parts[0]?.split(/\s+/) ?? [];
+  for (let k = words.length - 1; k >= 1; k--) {
+    const rest = words.slice(k);
+    attempts.push({ name: words.slice(0, k).join(" "), qualifiers: [...commaQualifiers, rest.join(" "), ...rest], regionOnly: true });
+  }
+
+  const matches = (h: GeoHit, a: (typeof attempts)[number]) =>
+    a.qualifiers.length === 0 ||
+    a.qualifiers.map(plain).some((q) =>
+      [h.country, h.admin1, h.admin2, a.regionOnly ? undefined : h.name].some((f) => f && (plain(f).includes(q) || q.includes(plain(f)))),
     );
 
+  const seen = new Set<string>();
   let fallback: GeoHit | null = null;
-  for (const c of candidates) {
-    const hits = await searchName(c);
-    const good = hits.find(matches);
+  for (const a of attempts) {
+    const key = `${a.name}|${a.qualifiers.join("|")}`;
+    if (!a.name || seen.has(key)) continue;
+    seen.add(key);
+    const hits = await searchName(a.name);
+    const good = hits.find((h) => matches(h, a));
     if (good) return toInfo(query, good);
     fallback ??= hits[0] ?? null;
   }
