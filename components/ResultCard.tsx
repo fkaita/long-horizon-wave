@@ -97,7 +97,7 @@ export default function ResultCard({ result }: { result: WaveResult }) {
           <Pipeline result={result} />
           {result.sources.length > 0 && (
             <Panel title="Live web sources · Nimble">
-              <ul className="space-y-1.5">
+              <ul className="space-y-1.5 text-sm">
                 {result.sources.slice(0, 5).map((s) => (
                   <li key={s.url} className="truncate">
                     <a href={s.url} target="_blank" rel="noreferrer" className="text-white/75 underline decoration-white/20 underline-offset-2 hover:text-white">

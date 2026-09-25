@@ -23,7 +23,7 @@ export default function Hero({ dim = false }: { dim?: boolean }) {
         />
       )}
       <div
-        className={`absolute inset-0 transition-colors duration-1000 ${dim ? "bg-black/70" : "bg-gradient-to-b from-black/40 via-transparent to-black/60"}`}
+        className={`absolute inset-0 transition-colors duration-1000 ${dim ? "bg-black/85" : "bg-gradient-to-b from-black/40 via-transparent to-black/60"}`}
       />
     </div>
   );
