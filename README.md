@@ -6,7 +6,7 @@ Type any beach. An agent finds a real photo of it on the live web, checks the cu
 
 ![Demo](docs/demo.gif)
 
-<sub>Real output for "Ocean Beach, San Francisco" · [MP4](docs/demo.mp4) · Source photo: sanfranciscojeeptours.com</sub>
+<sub>The app searching "Ocean Beach, San Francisco" · [MP4](docs/demo.mp4) · Source photo: sanfranciscojeeptours.com</sub>
 
 ---
 
@@ -43,24 +43,6 @@ flowchart LR
 | **RawTree** | Stores every search: raw Nimble + forecast data, structured JSON, prompts, generation status |
 
 Free helpers: Open-Meteo (marine forecast), OpenStreetMap Nominatim (geocoding), Wikimedia Commons (fallback photos), CLIP via transformers.js (local image check).
-
-## Judging criteria
-
-| Criteria | How Long Horizon answers it |
-|---|---|
-| **Autonomy** | One text box and nothing else. The agent searches the live web, reads live forecast data, picks and verifies a photo, writes its own prompts and generates the video. No manual steps. |
-| **Self-correction** | Every step checks its own output and falls back: rejected photos → next candidate → generated image. Unknown place → retries with shorter text. Missing forecast → reads wave height from Nimble surf reports. Missing data is left out, never invented. |
-| **Idea / real-world value** | Surfers and travellers want to know *"what does it look like there right now?"* Webcams exist for only a few beaches, but this works for any coastline. |
-| **Technical implementation** | Next.js + TypeScript. Small single-purpose modules (`lib/*.ts`), one orchestrator route, async BFL jobs with polling, and an on-disk cache so repeat searches are instant. |
-| **Tool use** | All 3 sponsor tools are in the main path: Nimble feeds data and photos, BFL makes the visuals, RawTree keeps the history. |
-
-## 3-minute demo
-
-1. **(0:00)** Landing page: a calm FLUX 3 ocean horizon. *"See the waves anywhere in the world."*
-2. **(0:20)** Click **Ocean Beach, San Francisco** (cached, instant). Point out the real-photo credit and the live conditions.
-3. **(0:50)** Type a new beach live, e.g. **"Bondi Beach Sydney"**. The re-lit real photo appears after about 10s, and the video about 45s later.
-4. **(1:40)** While it renders, show the RawTree table: every search with its raw web data and structured conditions.
-5. **(2:30)** The video lands. Compare it with the original photo thumbnail: same place, today's waves.
 
 ## Run it
 
