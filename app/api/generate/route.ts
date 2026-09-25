@@ -67,7 +67,7 @@ export async function POST(req: Request) {
   const confidence: WaveResult["confidence"] =
     now.source === "open-meteo" && surf?.results?.length ? "high" : now.source !== "none" ? "medium" : "low";
   if (!beachType) notes.push("Beach character not found in search results.");
-  pipeline.push({ step: "Structure", ok: true, ms: 0, detail: `${plans.length} moments, confidence ${confidence}` });
+  pipeline.push({ step: "Structure", ok: true, ms: 0, detail: `confidence ${confidence}` });
 
   // 4. Prompts + submit generations
   const searchId = randomUUID();

@@ -33,14 +33,8 @@ export function windText(mph: number | null, dir: string | null): string | null 
   return dir ? `${strength} ${dir} wind (${Math.round(mph)} mph)` : `${strength} wind (${Math.round(mph)} mph)`;
 }
 
-type Series = Record<string, (number | string | null)[]> | undefined;
 type Point = Record<string, number | string | null> | undefined;
 
-function pick(series: Series, time: string): Point {
-  const idx = (series?.time as string[] | undefined)?.indexOf(time) ?? -1;
-  if (!series || idx < 0) return undefined;
-  return Object.fromEntries(Object.entries(series).map(([k, v]) => [k, v[idx]]));
-}
 
 function build(marine: Point, weather: Point): Conditions {
   const wave = num(marine?.wave_height);
@@ -72,17 +66,15 @@ export interface ScenePlan {
   conditions: Conditions;
 }
 
-const hourOf = (t: string) => t.slice(0, 13) + ":00"; // "2026-09-26T06:58" → "2026-09-26T06:00"
 const hourNum = (t: string) => Number(t.slice(11, 13)) + Number(t.slice(14, 16)) / 60;
 
-/** Now + three forecast moments (dawn, midday, sunset on the next three days). */
+/** The "Now" scene: current conditions + time-of-day lighting. */
 export function planScenes(f: Forecast): ScenePlan[] {
   const w = f.weather;
   const m = f.marine;
   const nowTime = (w?.current?.time as string) ?? (m?.current?.time as string) ?? new Date().toISOString().slice(0, 16);
   const sunrises = (w?.daily?.sunrise as string[]) ?? [];
   const sunsets = (w?.daily?.sunset as string[]) ?? [];
-  const days = (w?.daily?.time as string[]) ?? [];
 
   const nowHour = hourNum(nowTime);
   const sr = sunrises[0] ? hourNum(sunrises[0]) : 6.5;
@@ -94,29 +86,6 @@ export function planScenes(f: Forecast): ScenePlan[] {
     { id: "now", label: "Now", time: nowTime, timeOfDay: nowTod, conditions: build(m?.current, w?.current) },
   ];
 
-  const future: { day: number; tod: TimeOfDay }[] = [
-    { day: 1, tod: "dawn" },
-    { day: 2, tod: "midday" },
-    { day: 3, tod: "sunset" },
-  ];
-  for (const { day, tod } of future) {
-    const date = days[day];
-    if (!date) continue;
-    const t =
-      tod === "dawn" && sunrises[day]
-        ? hourOf(sunrises[day])
-        : tod === "sunset" && sunsets[day]
-          ? `${date}T${String(Math.max(0, Math.floor(hourNum(sunsets[day])) - 1)).padStart(2, "0")}:00`
-          : `${date}T12:00`;
-    const weekday = new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { weekday: "long" });
-    scenes.push({
-      id: `d${day}-${tod}`,
-      label: `${day === 1 ? "Tomorrow" : weekday} · ${tod}`,
-      time: t,
-      timeOfDay: tod,
-      conditions: build(pick(m?.hourly, t), pick(w?.hourly, t)),
-    });
-  }
   return scenes;
 }
 

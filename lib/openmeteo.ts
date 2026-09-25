@@ -77,10 +77,10 @@ const WEATHER_VARS = "weather_code,wind_speed_10m,wind_direction_10m,cloud_cover
 export async function forecast(lat: number, lon: number): Promise<Forecast> {
   const marineUrl =
     `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}` +
-    `&current=${MARINE_VARS}&hourly=${MARINE_VARS}&timezone=auto&forecast_days=4&cell_selection=sea`;
+    `&current=${MARINE_VARS}&timezone=auto&forecast_days=1&cell_selection=sea`;
   const weatherUrl =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-    `&current=${WEATHER_VARS}&hourly=${WEATHER_VARS}&daily=sunrise,sunset&timezone=auto&forecast_days=4&wind_speed_unit=mph`;
+    `&current=${WEATHER_VARS}&daily=sunrise,sunset&timezone=auto&forecast_days=1&wind_speed_unit=mph`;
 
   const [marine, weather] = await Promise.all([getJson<MarineResponse>(marineUrl), getJson<WeatherResponse>(weatherUrl)]);
   return { marine, weather };
