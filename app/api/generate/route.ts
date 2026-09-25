@@ -2,11 +2,12 @@ import { randomUUID } from "crypto";
 import { forecast, geocode } from "@/lib/openmeteo";
 import { allText, searchLocation, toSources, type NimbleResponse } from "@/lib/nimble";
 import { beachTraits, conditionsFromText, planScenes, waterDescription } from "@/lib/structure";
-import { imagePrompt, videoPrompt } from "@/lib/prompts";
+import { editPrompt, imagePrompt, videoPrompt } from "@/lib/prompts";
+import { findRealPhoto } from "@/lib/photo";
 import { insert, rawtreeEnabled, stamp } from "@/lib/rawtree";
 import { imageModel, submitImage, submitVideo, videoEnabled, videoModel, waitFor } from "@/lib/blackforest";
 import { loadResult, saveJob, saveMedia, saveResult, slugify, type Job } from "@/lib/store";
-import type { MediaSlot, Scene, WaveResult } from "@/lib/types";
+import type { MediaSlot, RealPhoto, Scene, WaveResult } from "@/lib/types";
 
 export const maxDuration = 120;
 
@@ -46,10 +47,20 @@ export async function POST(req: Request) {
   ]);
   if (!loc) return Response.json({ error: `Couldn't find "${query}". Try adding a city or country.`, pipeline }, { status: 404 });
 
-  // 2. Marine + weather forecast
-  const fc = await step("Marine forecast", () => forecast(loc.latitude, loc.longitude), (f) =>
-    f.marine ? "Open-Meteo marine + weather models" : "no marine data for this point",
-  );
+  // 2. Marine + weather forecast, and a verified real photo of the beach (in parallel)
+  const [fc, photoSearch] = await Promise.all([
+    step("Marine forecast", () => forecast(loc.latitude, loc.longitude), (f) =>
+      f.marine ? "Open-Meteo marine + weather models" : "no marine data for this point",
+    ),
+    process.env.USE_REAL_PHOTO === "false"
+      ? Promise.resolve(null)
+      : step("Real photo", () => findRealPhoto(query, nimble?.surf ?? null, nimble?.beach ?? null), (r) =>
+          r.best
+            ? `${new URL(r.best.pageUrl).host} · beach ${r.best.beach.toFixed(2)} · ${r.checked.filter((c) => c.ok).length}/${r.checked.length} candidates passed`
+            : `none of ${r.checked.length} candidates passed the beach check`,
+        ),
+  ]);
+  const realPhoto = photoSearch?.best ?? null;
 
   // 3. Structure
   const surf: NimbleResponse | null = nimble?.surf ?? null;
@@ -87,26 +98,56 @@ export async function POST(req: Request) {
     }
   };
 
+  /** Wait for a still to finish, cache it locally, and return its BFL URL for use as the video keyframe. */
+  const settle = async (image: MediaSlot): Promise<string | undefined> => {
+    const imgJob = jobs.find((j) => j.id === image.jobId);
+    if (!imgJob) return undefined;
+    const r = await waitFor(imgJob.pollingUrl);
+    if (r.status !== "ready" || !r.sample) return undefined;
+    imgJob.file = await saveMedia(imgJob.id, "jpg", await (await fetch(r.sample)).arrayBuffer());
+    imgJob.status = "ready";
+    await saveJob(imgJob);
+    Object.assign(image, { status: "ready", url: `/api/media/${imgJob.file}` });
+    return r.sample;
+  };
+
+  let photo: RealPhoto | null = null;
   const t0 = Date.now();
   const scenes: Scene[] = await Promise.all(
     plans.map(async (p) => {
       const input = { location: place, conditions: p.conditions, timeOfDay: p.timeOfDay, beachType, water };
-      const prompt = imagePrompt(input);
-
-      // Still first (~10 s), then animate it: the still is the video's first frame.
-      const image = await mkSlot("image", p.id, prompt, () => submitImage(prompt));
+      let prompt = imagePrompt(input);
+      let image: MediaSlot = { jobId: null, status: "skipped", url: null };
       let keyframe: string | undefined;
-      const imgJob = jobs.find((j) => j.id === image.jobId);
-      if (imgJob) {
-        const r = await waitFor(imgJob.pollingUrl);
-        if (r.status === "ready" && r.sample) {
-          keyframe = r.sample;
-          imgJob.file = await saveMedia(imgJob.id, "jpg", await (await fetch(r.sample)).arrayBuffer());
-          imgJob.status = "ready";
-          await saveJob(imgJob);
-          Object.assign(image, { status: "ready", url: `/api/media/${imgJob.file}` });
+
+      if (realPhoto?.jpeg) {
+        // Real photo → (optionally) re-light it to right now with FLUX.2 → animate
+        const file = await saveMedia(`photo-${searchId}`, "jpg", new Uint8Array(realPhoto.jpeg).buffer);
+        photo = {
+          url: `/api/media/${file}`,
+          pageUrl: realPhoto.pageUrl,
+          host: new URL(realPhoto.pageUrl).host.replace(/^www\./, ""),
+          origin: realPhoto.origin,
+          beachScore: Math.round(realPhoto.beach * 100) / 100,
+          edited: false,
+        };
+        if (process.env.PHOTO_EDIT !== "false") {
+          prompt = editPrompt(input);
+          image = await mkSlot("image", p.id, prompt, () => submitImage(prompt, realPhoto.jpeg));
+          keyframe = await settle(image);
+          photo.edited = Boolean(keyframe);
         }
+        if (!keyframe) {
+          // Edit disabled or failed: animate the untouched real photo
+          image = { jobId: null, status: "ready", url: photo.url };
+          keyframe = `data:image/jpeg;base64,${realPhoto.jpeg.toString("base64")}`;
+        }
+      } else {
+        // No verified photo: generate the still from scratch
+        image = await mkSlot("image", p.id, prompt, () => submitImage(prompt));
+        keyframe = await settle(image);
       }
+
       const video = videoEnabled() ? await mkSlot("video", p.id, videoPrompt(input), () => submitVideo(videoPrompt(input), keyframe)) : undefined;
       return { ...p, prompt, image, video };
     }),
@@ -126,6 +167,7 @@ export async function POST(req: Request) {
     notes,
     sources: toSources(surf, beach).slice(0, 6),
     scenes,
+    photo,
     pipeline,
   };
 
@@ -151,6 +193,11 @@ export async function POST(req: Request) {
           structured: { location: place, ...now, beach_type: beachType, water_description: water, confidence, forecast: plans },
           raw_nimble: JSON.stringify({ surf, beach }).slice(0, 500_000),
           raw_forecast: JSON.stringify(fc).slice(0, 500_000),
+          photo_url: realPhoto?.imageUrl ?? null,
+          photo_page: realPhoto?.pageUrl ?? null,
+          photo_beach_score: realPhoto?.beach ?? null,
+          photo_edited: photo?.edited ?? false,
+          photo_candidates: (photoSearch?.checked ?? []).map((c) => ({ url: c.imageUrl, page: c.pageUrl, ok: c.ok, beach: c.beach, flat: c.flat, reason: c.reason ?? null })),
         },
       ]),
       insert(

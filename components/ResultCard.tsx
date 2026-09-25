@@ -41,6 +41,22 @@ export default function ResultCard({ result }: { result: WaveResult }) {
         )}
       </div>
 
+      {result.photo && (
+        <div className="mt-3 flex items-center gap-3 text-xs text-white/50">
+          <a href={result.photo.pageUrl} target="_blank" rel="noreferrer" className="shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={result.photo.url} alt="Original photo" className="h-9 w-16 rounded object-cover opacity-80 hover:opacity-100" />
+          </a>
+          <span>
+            Animated from a real photo ·{" "}
+            <a href={result.photo.pageUrl} target="_blank" rel="noreferrer" className="underline decoration-white/30 underline-offset-2 hover:text-white">
+              {result.photo.host}
+            </a>
+            {result.photo.edited && " · adjusted to current conditions"}
+          </span>
+        </div>
+      )}
+
       <ul className="mt-5 space-y-1 text-sm">
         {rows.map(([k, v]) => (
           <li key={k}>

@@ -24,9 +24,10 @@ async function submit(model: string, body: Record<string, unknown>): Promise<Sub
   return res.json();
 }
 
-export function submitImage(prompt: string, seed?: number) {
-  // 1440x816 ≈ 16:9, ~1.2 MP
-  return submit(imageModel(), { prompt, width: 1440, height: 816, output_format: "jpeg", ...(seed != null && { seed }) });
+/** Text-to-image, or an edit of `inputImage` (base64 JPEG) when given. */
+export function submitImage(prompt: string, inputImage?: Buffer) {
+  // 1456x816 ≈ 16:9, ~1.2 MP
+  return submit(imageModel(), { prompt, width: 1456, height: 816, output_format: "jpeg", ...(inputImage && { input_image: inputImage.toString("base64") }) });
 }
 
 /** With a keyframe (i2v) the still becomes the first frame, which pins sky + light so the clip plays in real time. */

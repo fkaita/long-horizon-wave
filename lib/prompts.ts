@@ -87,11 +87,21 @@ export function videoPrompt(p: PromptInput): string {
   return [
     `A short realistic video of the ocean at ${p.location}, filmed in real time at natural 1x speed.`,
     "One continuous unedited shot of a single moment: NOT a time-lapse, NOT fast motion, NOT slow motion.",
-    "Static tripod camera on the sand at shore level, no camera movement, a long ocean horizon across the frame.",
+    "Locked-off static tripod shot: the camera does not pan, tilt, zoom, dolly or shake at all; the frame stays exactly as in the first frame.",
     ...sceneLines(p),
     "Waves roll in and break at their true real-world speed, with physically accurate motion that reflects the swell size and period.",
     "Only the water moves. The sky, clouds, sun or moon and lighting stay exactly as in the first frame for the whole clip, like a still photograph; nothing appears or disappears.",
     "Audio: only natural ambient sound of the waves breaking and wind, no music, no voices.",
     "Looks like raw documentary footage from a live surf webcam.",
+  ].join(" ");
+}
+
+/** Edit a real photo of the beach so its sea + sky match right now, keeping the place itself untouched. */
+export function editPrompt(p: PromptInput): string {
+  return [
+    `This is a real photograph of ${p.location}. Keep the exact same place, camera position, framing, coastline, landmarks and buildings.`,
+    "Change only the ocean, waves, sky and light so they match the current conditions:",
+    ...sceneLines(p).filter((l) => !l.startsWith("The coastline") && !l.startsWith("A lone surfer")),
+    "The result must still look like an unedited real photograph. No text, no watermark.",
   ].join(" ");
 }

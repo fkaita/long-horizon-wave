@@ -60,5 +60,15 @@ export interface WaveResult {
   notes: string[];
   sources: NimbleSource[];
   scenes: Scene[];
+  photo: RealPhoto | null;
   pipeline: { step: string; ok: boolean; ms: number; detail?: string }[];
+}
+
+export interface RealPhoto {
+  url: string; // our cached copy
+  pageUrl: string;
+  host: string;
+  origin: "nimble" | "wikimedia";
+  beachScore: number;
+  edited: boolean; // re-lit to current conditions with FLUX.2
 }
