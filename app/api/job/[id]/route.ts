@@ -1,6 +1,6 @@
 import { poll } from "@/lib/blackforest";
 import { loadJob, saveJob, saveMedia, updateSlot } from "@/lib/store";
-import { ingest, tbNow } from "@/lib/tinybird";
+import { insert, stamp } from "@/lib/rawtree";
 
 const inflight = new Map<string, Promise<unknown>>();
 
@@ -24,8 +24,8 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/job/[id]">) {
       }
       await saveJob(job);
       await updateSlot(job);
-      await ingest("wave_generations", [
-        { timestamp: tbNow(), search_id: job.searchId, job_id: job.id, scene_id: job.sceneId, kind: job.kind, model: job.model, prompt: job.prompt, status: job.status, duration_ms: Date.now() - job.createdAt },
+      await insert("wave_generations", [
+        { ...stamp(), search_id: job.searchId, job_id: job.id, scene_id: job.sceneId, kind: job.kind, model: job.model, prompt: job.prompt, status: job.status, duration_ms: Date.now() - job.createdAt },
       ]).catch(() => {});
     })().finally(() => inflight.delete(id));
     inflight.set(id, work);

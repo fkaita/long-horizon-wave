@@ -3,14 +3,14 @@ import { forecast, geocode } from "@/lib/openmeteo";
 import { allText, searchLocation, toSources, type NimbleResponse } from "@/lib/nimble";
 import { beachTraits, conditionsFromText, planScenes, waterDescription } from "@/lib/structure";
 import { imagePrompt, videoPrompt } from "@/lib/prompts";
-import { ingest, tbNow, tinybirdEnabled } from "@/lib/tinybird";
+import { insert, rawtreeEnabled, stamp } from "@/lib/rawtree";
 import { imageModel, submitImage, submitVideo, videoEnabled, videoModel } from "@/lib/blackforest";
 import { loadResult, saveJob, saveResult, slugify, type Job } from "@/lib/store";
 import type { MediaSlot, Scene, WaveResult } from "@/lib/types";
 
 export const maxDuration = 120;
 
-const CACHE_MS = 3 * 60 * 60 * 1000;
+const CACHE_MS = Number(process.env.CACHE_HOURS || 12) * 60 * 60 * 1000;
 
 export async function POST(req: Request) {
   const { location, fresh } = (await req.json().catch(() => ({}))) as { location?: string; fresh?: boolean };
@@ -72,7 +72,8 @@ export async function POST(req: Request) {
   // 4. Prompts + submit generations
   const searchId = randomUUID();
   // Keep the user's words ("Ocean Beach") — the geocoder often only resolves the city
-  const place = query.toLowerCase().includes(loc.name.toLowerCase()) ? `${query}${loc.country && !query.includes(loc.country) ? `, ${loc.country}` : ""}` : `${query} (${loc.displayName})`;
+  const plain = (t: string) => t.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const place = plain(query).includes(plain(loc.name)) ? `${query}${loc.country && !query.includes(loc.country) ? `, ${loc.country}` : ""}` : `${query} (${loc.displayName})`;
   const jobs: Job[] = [];
   const mkSlot = async (kind: Job["kind"], sceneId: string, prompt: string, submit: () => Promise<{ id: string; polling_url: string }>): Promise<MediaSlot> => {
     try {
@@ -119,13 +120,13 @@ export async function POST(req: Request) {
     pipeline,
   };
 
-  // 5. Log everything to Tinybird
-  await step("Tinybird", async () => {
-    if (!tinybirdEnabled()) throw new Error("TINYBIRD_TOKEN not set — skipped");
+  // 5. Log everything to RawTree
+  await step("RawTree", async () => {
+    if (!rawtreeEnabled()) throw new Error("RAWTREE_API_KEY not set — skipped");
     await Promise.all([
-      ingest("wave_searches", [
+      insert("wave_searches", [
         {
-          timestamp: tbNow(),
+          ...stamp(),
           search_id: searchId,
           query,
           location: place,
@@ -138,14 +139,14 @@ export async function POST(req: Request) {
           wind_mph: now.wind_mph,
           weather: now.weather,
           confidence,
-          structured: JSON.stringify({ location: place, ...now, beach_type: beachType, water_description: water, confidence, forecast: plans }),
+          structured: { location: place, ...now, beach_type: beachType, water_description: water, confidence, forecast: plans },
           raw_nimble: JSON.stringify({ surf, beach }).slice(0, 500_000),
           raw_forecast: JSON.stringify(fc).slice(0, 500_000),
         },
       ]),
-      ingest(
+      insert(
         "wave_generations",
-        jobs.map((j) => ({ timestamp: tbNow(), search_id: searchId, job_id: j.id, scene_id: j.sceneId, kind: j.kind, model: j.model, prompt: j.prompt, status: "submitted", duration_ms: 0 })),
+        jobs.map((j) => ({ ...stamp(), search_id: searchId, job_id: j.id, scene_id: j.sceneId, kind: j.kind, model: j.model, prompt: j.prompt, status: "submitted", duration_ms: 0 })),
       ),
     ]);
     return true;

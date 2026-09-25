@@ -15,7 +15,7 @@ interface Live {
   error?: string;
 }
 
-/** "Live on Long Horizon" — straight from Tinybird. */
+/** "Live on Long Horizon" — straight from RawTree SQL. */
 export default function LiveStrip({ refreshKey, onPick }: { refreshKey: number; onPick: (q: string) => void }) {
   const [live, setLive] = useState<Live | null>(null);
 
@@ -41,7 +41,7 @@ export default function LiveStrip({ refreshKey, onPick }: { refreshKey: number; 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         <span className="flex items-center gap-2 font-mono uppercase tracking-widest text-white/50">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-          Live · {live.total} searches · Tinybird
+          Live · {live.total} searches · RawTree
         </span>
         {live.biggest.length > 0 && (
           <span className="flex flex-wrap items-center gap-2 text-white/70">

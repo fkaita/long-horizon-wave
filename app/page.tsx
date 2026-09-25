@@ -7,7 +7,7 @@ import ResultCard from "@/components/ResultCard";
 import LiveStrip from "@/components/LiveStrip";
 import type { MediaSlot, WaveResult } from "@/lib/types";
 
-const STEPS = ["Locating the coast", "Searching the live web · Nimble", "Reading the marine forecast", "Structuring conditions", "Logging to Tinybird", "Briefing Black Forest Labs"];
+const STEPS = ["Locating the coast", "Searching the live web · Nimble", "Reading the marine forecast", "Structuring conditions", "Logging to RawTree", "Briefing Black Forest Labs"];
 
 export default function Home() {
   const [result, setResult] = useState<WaveResult | null>(null);
