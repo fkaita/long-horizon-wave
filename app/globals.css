@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-serif);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: #05070b;
+  color: #eef2f6;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* ---------- CSS ocean horizon (fallback / underlay for hero video) ---------- */
+.ocean {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #0b1422 0%, #22344d 30%, #6d7f95 50%, #c9b8a6 57.5%, #e8cfae 58%);
+}
+.ocean .sun {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 60vmin;
+  height: 60vmin;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(255, 226, 180, 0.55) 0%, rgba(255, 200, 150, 0.15) 30%, transparent 60%);
+  filter: blur(8px);
+}
+.ocean .sea {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 58%;
+  bottom: 0;
+  background: linear-gradient(180deg, #3d5068 0%, #1b2a3d 35%, #0a121d 100%);
+}
+.ocean .sea::before,
+.ocean .sea::after {
+  content: "";
+  position: absolute;
+  inset: 0 -50%;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255, 230, 200, 0.07) 0px,
+    rgba(255, 230, 200, 0) 2px,
+    rgba(255, 230, 200, 0) 7px
+  );
+  mask-image: radial-gradient(ellipse 30% 90% at 50% 0%, #000 0%, transparent 70%);
+  animation: drift 14s ease-in-out infinite alternate;
+}
+.ocean .sea::after {
+  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 11px);
+  mask-image: linear-gradient(180deg, transparent, #000 40%);
+  animation-duration: 9s;
+  animation-direction: alternate-reverse;
+}
+@keyframes drift {
+  from {
+    transform: translate3d(-4%, 0, 0) scaleY(1);
+  }
+  to {
+    transform: translate3d(4%, 3px, 0) scaleY(1.04);
+  }
+}
+
+/* slow push-in on generated stills so they feel alive */
+@keyframes kenburns {
+  from {
+    transform: scale(1.02) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.12) translate3d(-1.5%, -1%, 0);
+  }
+}
+.kenburns {
+  animation: kenburns 14s ease-out forwards;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.shimmer {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 25%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2.2s linear infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  animation: rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}

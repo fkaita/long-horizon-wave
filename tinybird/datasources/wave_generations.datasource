@@ -1,0 +1,16 @@
+DESCRIPTION >
+    Black Forest Labs generation lifecycle: one row on submit, one on completion.
+
+SCHEMA >
+    `timestamp` DateTime64(3) `json:$.timestamp`,
+    `search_id` String `json:$.search_id`,
+    `job_id` String `json:$.job_id`,
+    `scene_id` String `json:$.scene_id`,
+    `kind` String `json:$.kind`,
+    `model` String `json:$.model`,
+    `prompt` String `json:$.prompt`,
+    `status` String `json:$.status`,
+    `duration_ms` UInt64 `json:$.duration_ms`
+
+ENGINE "MergeTree"
+ENGINE_SORTING_KEY "timestamp"
