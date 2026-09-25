@@ -85,11 +85,13 @@ export function imagePrompt(p: PromptInput): string {
 
 export function videoPrompt(p: PromptInput): string {
   return [
-    `A short realistic cinematic video of the ocean at ${p.location}.`,
-    "Locked-off wide shot from the sand at shore level, slow gentle push-in, a long ocean horizon across the frame.",
+    `A short realistic video of the ocean at ${p.location}, filmed in real time at natural 1x speed.`,
+    "One continuous unedited shot of a single moment: NOT a time-lapse, NOT fast motion, NOT slow motion.",
+    "Static tripod camera on the sand at shore level, no camera movement, a long ocean horizon across the frame.",
     ...sceneLines(p),
-    "Waves roll in and break naturally with physically accurate motion that reflects the swell size and period.",
+    "Waves roll in and break at their true real-world speed, with physically accurate motion that reflects the swell size and period.",
+    "Only the water moves. The sky, clouds, sun or moon and lighting stay exactly as in the first frame for the whole clip, like a still photograph; nothing appears or disappears.",
     "Audio: only natural ambient sound of the waves breaking and wind, no music, no voices.",
-    "Documentary, natural, calm pacing.",
+    "Looks like raw documentary footage from a live surf webcam.",
   ].join(" ");
 }

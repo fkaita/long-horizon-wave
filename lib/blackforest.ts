@@ -29,9 +29,11 @@ export function submitImage(prompt: string, seed?: number) {
   return submit(imageModel(), { prompt, width: 1440, height: 816, output_format: "jpeg", ...(seed != null && { seed }) });
 }
 
-export function submitVideo(prompt: string) {
+/** With a keyframe (i2v) the still becomes the first frame, which pins sky + light so the clip plays in real time. */
+export function submitVideo(prompt: string, keyframe?: string) {
   return submit(videoModel(), {
-    mode: "t2v",
+    mode: keyframe ? "i2v" : "t2v",
+    ...(keyframe && { keyframes: [keyframe] }),
     prompt,
     duration: Number(process.env.BFL_VIDEO_SECONDS || 5),
     aspect_ratio: "16:9",
@@ -51,4 +53,14 @@ export async function poll(pollingUrl: string): Promise<{ status: PollStatus; sa
   if (s === "Ready") return { status: "ready", sample: json.result?.sample, raw: s };
   if (["Request Moderated", "Content Moderated", "Error", "Task not found", "Failed"].includes(s)) return { status: "failed", raw: s };
   return { status: "pending", raw: s };
+}
+
+export async function waitFor(pollingUrl: string, timeoutMs = 60_000) {
+  const end = Date.now() + timeoutMs;
+  while (Date.now() < end) {
+    const r = await poll(pollingUrl);
+    if (r.status !== "pending") return r;
+    await new Promise((res) => setTimeout(res, 1500));
+  }
+  return { status: "pending" as const, raw: "timeout" };
 }

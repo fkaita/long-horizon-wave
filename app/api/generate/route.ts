@@ -4,8 +4,8 @@ import { allText, searchLocation, toSources, type NimbleResponse } from "@/lib/n
 import { beachTraits, conditionsFromText, planScenes, waterDescription } from "@/lib/structure";
 import { imagePrompt, videoPrompt } from "@/lib/prompts";
 import { insert, rawtreeEnabled, stamp } from "@/lib/rawtree";
-import { imageModel, submitImage, submitVideo, videoEnabled, videoModel } from "@/lib/blackforest";
-import { loadResult, saveJob, saveResult, slugify, type Job } from "@/lib/store";
+import { imageModel, submitImage, submitVideo, videoEnabled, videoModel, waitFor } from "@/lib/blackforest";
+import { loadResult, saveJob, saveMedia, saveResult, slugify, type Job } from "@/lib/store";
 import type { MediaSlot, Scene, WaveResult } from "@/lib/types";
 
 export const maxDuration = 120;
@@ -87,18 +87,27 @@ export async function POST(req: Request) {
     }
   };
 
-  const seed = Math.floor(Math.random() * 1e6);
   const t0 = Date.now();
   const scenes: Scene[] = await Promise.all(
     plans.map(async (p) => {
       const input = { location: place, conditions: p.conditions, timeOfDay: p.timeOfDay, beachType, water };
       const prompt = imagePrompt(input);
-      const [image, video] = await Promise.all([
-        mkSlot("image", p.id, prompt, () => submitImage(prompt, seed)),
-        p.id === "now" && videoEnabled()
-          ? mkSlot("video", p.id, videoPrompt(input), () => submitVideo(videoPrompt(input)))
-          : Promise.resolve(undefined),
-      ]);
+
+      // Still first (~10 s), then animate it: the still is the video's first frame.
+      const image = await mkSlot("image", p.id, prompt, () => submitImage(prompt));
+      let keyframe: string | undefined;
+      const imgJob = jobs.find((j) => j.id === image.jobId);
+      if (imgJob) {
+        const r = await waitFor(imgJob.pollingUrl);
+        if (r.status === "ready" && r.sample) {
+          keyframe = r.sample;
+          imgJob.file = await saveMedia(imgJob.id, "jpg", await (await fetch(r.sample)).arrayBuffer());
+          imgJob.status = "ready";
+          await saveJob(imgJob);
+          Object.assign(image, { status: "ready", url: `/api/media/${imgJob.file}` });
+        }
+      }
+      const video = videoEnabled() ? await mkSlot("video", p.id, videoPrompt(input), () => submitVideo(videoPrompt(input), keyframe)) : undefined;
       return { ...p, prompt, image, video };
     }),
   );
