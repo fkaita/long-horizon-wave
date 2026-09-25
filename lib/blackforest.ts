@@ -3,7 +3,7 @@
 const BASE = "https://api.bfl.ai/v1";
 const key = () => process.env.BFL_API_KEY;
 
-export const imageModel = () => process.env.BFL_IMAGE_MODEL || "flux-2-pro";
+export const imageModel = () => process.env.BFL_IMAGE_MODEL || "flux-2-klein-9b";
 export const videoModel = () => process.env.BFL_VIDEO_MODEL || "flux-3-video";
 export const videoEnabled = () => Boolean(key()) && process.env.ENABLE_VIDEO !== "false";
 
@@ -38,8 +38,8 @@ export function submitVideo(prompt: string, keyframe?: string) {
     duration: Number(process.env.BFL_VIDEO_SECONDS || 5),
     aspect_ratio: "16:9",
     resolution: "hd",
-    generate_audio: true,
-    draft: process.env.BFL_VIDEO_DRAFT === "true",
+    generate_audio: process.env.BFL_VIDEO_AUDIO === "true",
+    draft: process.env.BFL_VIDEO_DRAFT !== "false", // draft ≈ 2x faster (~40 s vs ~90 s)
   });
 }
 
@@ -60,7 +60,7 @@ export async function waitFor(pollingUrl: string, timeoutMs = 60_000) {
   while (Date.now() < end) {
     const r = await poll(pollingUrl);
     if (r.status !== "pending") return r;
-    await new Promise((res) => setTimeout(res, 1500));
+    await new Promise((res) => setTimeout(res, 500));
   }
   return { status: "pending" as const, raw: "timeout" };
 }

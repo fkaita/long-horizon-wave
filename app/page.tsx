@@ -45,7 +45,7 @@ export default function Home() {
         };
         return { ...prev, scenes: prev.scenes.map((s) => ({ ...s, image: patch(s.image)!, video: patch(s.video) })) };
       });
-    }, 3000);
+    }, 2000);
     return () => clearTimeout(t);
   }, [result]);
 
