@@ -19,6 +19,10 @@ const OTHER_LABELS = [
 ];
 const MIN_BEACH = 0.8;
 const MAX_FLAT = 0.7;
+const MAX_WATERMARK = 0.6;
+const STYLE_LABELS = ["a real photograph", "an AI-generated image", "a digital illustration or painting", "a photo with a watermark"];
+// AI-image galleries and watermarked stock sites: never real, usable photos
+const BLOCKED = /tripadvisor|facebook|instagram|youtube|pinterest|kupi\.com|shutterstock|gettyimages|istockphoto|alamy|dreamstime|depositphotos|123rf|stock\.adobe|freepik|vecteezy|midjourney|lexica|openart|nightcafe|playground\.com/i;
 const UA = "LongHorizon/0.1 (hackathon demo; https://github.com/fkaita/long-horizon-wave)";
 
 export interface Candidate {
@@ -30,6 +34,7 @@ export interface Candidate {
 export interface CheckedPhoto extends Candidate {
   ok: boolean;
   beach: number;
+  watermark: number;
   flat: number;
   width: number;
   height: number;
@@ -49,12 +54,17 @@ export function loadClassifier(): Promise<Classifier> {
   return g.__clip;
 }
 
-async function beachScore(buf: Buffer): Promise<number> {
+/** CLIP scores: how "beach photo" it is, and how likely it carries a watermark. */
+async function clipScores(buf: Buffer): Promise<{ beach: number; watermark: number }> {
   const { RawImage } = await import("@huggingface/transformers");
   const clf = await loadClassifier();
   const px = await sharp(buf).resize(224, 224, { fit: "cover" }).removeAlpha().raw().toBuffer();
-  const out = await clf(new RawImage(new Uint8ClampedArray(px), 224, 224, 3), [...BEACH_LABELS, ...OTHER_LABELS]);
-  return out.filter((o) => BEACH_LABELS.includes(o.label)).reduce((a, o) => a + o.score, 0);
+  const img = new RawImage(new Uint8ClampedArray(px), 224, 224, 3);
+  const [content, style] = [await clf(img, [...BEACH_LABELS, ...OTHER_LABELS]), await clf(img, STYLE_LABELS)];
+  return {
+    beach: content.filter((o) => BEACH_LABELS.includes(o.label)).reduce((a, o) => a + o.score, 0),
+    watermark: style.find((o) => o.label === "a photo with a watermark")?.score ?? 0,
+  };
 }
 
 /** Share of neighbouring pixels that are identical. Graphics/text cards ≈ 0.85, photos ≈ 0.05–0.5. */
@@ -104,7 +114,8 @@ async function wikimedia(query: string): Promise<Candidate[]> {
 }
 
 async function check(c: Candidate): Promise<CheckedPhoto> {
-  const base = { ...c, ok: false, beach: 0, flat: 1, width: 0, height: 0 };
+  const base = { ...c, ok: false, beach: 0, watermark: 0, flat: 1, width: 0, height: 0 };
+  if (BLOCKED.test(c.imageUrl) || BLOCKED.test(c.pageUrl)) return { ...base, reason: "blocked source (AI / stock)" };
   try {
     const res = await fetch(c.imageUrl, { headers: { "User-Agent": c.origin === "wikimedia" ? UA : "Mozilla/5.0" }, signal: AbortSignal.timeout(7000) });
     if (!res.ok) return { ...base, reason: `http ${res.status}` };
@@ -116,9 +127,10 @@ async function check(c: Candidate): Promise<CheckedPhoto> {
     if (width < 700 || height < 380) return { ...sized, reason: "too small" };
     const aspect = width / height;
     if (aspect < 1.2 || aspect > 2.6) return { ...sized, reason: "not landscape" };
-    const [beach, flat] = await Promise.all([beachScore(buf), flatness(buf)]);
-    const checked = { ...sized, beach, flat };
+    const [{ beach, watermark }, flat] = await Promise.all([clipScores(buf), flatness(buf)]);
+    const checked = { ...sized, beach, watermark, flat };
     if (flat > MAX_FLAT) return { ...checked, reason: "looks like a graphic" };
+    if (watermark >= MAX_WATERMARK) return { ...checked, reason: "watermarked" };
     if (beach < MIN_BEACH) return { ...checked, reason: "not a beach photo" };
     const jpeg = await sharp(buf).resize(1456, 816, { fit: "cover", position: "attention" }).jpeg({ quality: 90 }).toBuffer();
     return { ...checked, ok: true, jpeg };
@@ -129,7 +141,7 @@ async function check(c: Candidate): Promise<CheckedPhoto> {
 
 /** Returns the best verified beach photo (or null) and every candidate's verdict. */
 export async function findRealPhoto(query: string, ...nimble: (NimbleResponse | null)[]) {
-  const pages = [...new Set(nimble.flatMap((r) => r?.results ?? []).map((r) => r.url))].filter((u) => !/tripadvisor|facebook|instagram|youtube/.test(u)).slice(0, 8);
+  const pages = [...new Set(nimble.flatMap((r) => r?.results ?? []).map((r) => r.url))].filter((u) => !BLOCKED.test(u)).slice(0, 8);
   const [og, wiki] = await Promise.all([
     Promise.all(pages.map(async (p) => ({ imageUrl: await ogImage(p), pageUrl: p }))),
     wikimedia(query.split(",")[0]),

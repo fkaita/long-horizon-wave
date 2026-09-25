@@ -197,7 +197,7 @@ export async function POST(req: Request) {
           photo_page: realPhoto?.pageUrl ?? null,
           photo_beach_score: realPhoto?.beach ?? null,
           photo_edited: photo?.edited ?? false,
-          photo_candidates: (photoSearch?.checked ?? []).map((c) => ({ url: c.imageUrl, page: c.pageUrl, ok: c.ok, beach: c.beach, flat: c.flat, reason: c.reason ?? null })),
+          photo_candidates: (photoSearch?.checked ?? []).map((c) => ({ url: c.imageUrl, page: c.pageUrl, ok: c.ok, beach: c.beach, watermark: c.watermark, flat: c.flat, reason: c.reason ?? null })),
         },
       ]),
       insert(
